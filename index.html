@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SortFlow — Automated Web File Organizer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .drag-active { border-color: #3b82f6 !important; background-color: #eff6ff !important; }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col">
+
+    <!-- Navbar -->
+    <header class="bg-white border-b border-slate-200 sticky top-0 z-10">
+        <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+            <div class="flex items-center gap-2.5">
+                <div class="w-9 h-9 bg-blue-600 rounded-lg flex items-center justify-center text-white font-bold text-lg shadow-sm">
+                    S
+                </div>
+                <div>
+                    <h1 class="text-lg font-bold text-slate-900 leading-tight">SortFlow</h1>
+                    <p class="text-xs text-slate-500">Smart Client-Side File Organizer</p>
+                </div>
+            </div>
+            <div class="flex items-center gap-3">
+                <button onclick="loadSampleFiles()" class="text-xs sm:text-sm font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg transition">
+                    Load Sample Files
+                </button>
+                <button onclick="clearAll()" id="clearBtn" class="hidden text-xs sm:text-sm font-medium text-slate-600 hover:text-red-600 px-2.5 py-1.5 rounded-lg transition">
+                    Clear
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        
+        <!-- Upload Dropzone -->
+        <div id="dropzone" class="border-2 border-dashed border-slate-300 bg-white rounded-2xl p-8 text-center transition-all cursor-pointer hover:border-blue-400 hover:bg-slate-50/50 shadow-sm">
+            <input type="file" id="fileInput" multiple class="hidden">
+            <div class="w-12 h-12 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-3">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
+                </svg>
+            </div>
+            <h2 class="text-base sm:text-lg font-semibold text-slate-800">Drop messy files here or click to browse</h2>
+            <p class="text-xs sm:text-sm text-slate-500 mt-1 max-w-md mx-auto">
+                Automatically detects extensions, resolves duplicate filenames, and packages sorted folders into a clean ZIP archive.
+            </p>
+        </div>
+
+        <!-- Dashboard Section (Hidden until files are added) -->
+        <div id="dashboard" class="hidden mt-8 space-y-6">
+            
+            <!-- Top Metrics & Export Actions -->
+            <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div class="flex flex-wrap items-center gap-6">
+                    <div>
+                        <p class="text-xs font-medium text-slate-400 uppercase tracking-wider">Total Files</p>
+                        <p id="totalFilesCount" class="text-2xl font-bold text-slate-900">0</p>
+                    </div>
+                    <div class="h-8 w-px bg-slate-200 hidden sm:block"></div>
+                    <div>
+                        <p class="text-xs font-medium text-slate-400 uppercase tracking-wider">Categories</p>
+                        <p id="totalCategoriesCount" class="text-2xl font-bold text-blue-600">0</p>
+                    </div>
+                    <div class="h-8 w-px bg-slate-200 hidden sm:block"></div>
+                    <div>
+                        <p class="text-xs font-medium text-slate-400 uppercase tracking-wider">Total Size</p>
+                        <p id="totalSizeCount" class="text-2xl font-bold text-slate-900">0 KB</p>
+                    </div>
+                </div>
+
+                <div class="flex flex-wrap items-center gap-2.5">
+                    <button onclick="downloadReport()" class="px-4 py-2 text-sm font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl transition flex items-center gap-2">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                        Export Tree (.txt)
+                    </button>
+                    <button onclick="downloadZip()" id="zipBtn" class="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow-sm transition flex items-center gap-2">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                        Download Sorted ZIP
+                    </button>
+                </div>
+            </div>
+
+            <!-- Category Folder Cards -->
+            <div>
+                <div class="flex items-center justify-between mb-3">
+                    <h3 class="text-sm font-semibold text-slate-700">Auto-Generated Folders</h3>
+                    <button onclick="setFilter('All')" id="resetFilterBtn" class="hidden text-xs font-medium text-blue-600 hover:underline">Show All Folders</button>
+                </div>
+                <div id="categoryGrid" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+                    <!-- Populated via JS -->
+                </div>
+            </div>
+
+            <!-- File List & Search -->
+            <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                <div class="p-4 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div class="flex items-center gap-2">
+                        <h3 class="font-semibold text-slate-800">Sorted Directory Preview</h3>
+                        <span id="activeFilterBadge" class="text-xs font-medium bg-blue-100 text-blue-700 px-2.5 py-0.5 rounded-full">All</span>
+                    </div>
+                    <div class="relative w-full sm:w-64">
+                        <input type="text" id="searchInput" oninput="renderFileList()" placeholder="Search filenames..." class="w-full pl-9 pr-3 py-1.5 text-sm border border-slate-300 rounded-lg focus:outline-none focus:border-blue-500">
+                        <svg class="w-4 h-4 text-slate-400 absolute left-3 top-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                    </div>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="bg-slate-50 text-slate-500 text-xs uppercase border-b border-slate-200">
+                                <th class="py-3 px-4 font-semibold">Target Folder</th>
+                                <th class="py-3 px-4 font-semibold">Organized Filename</th>
+                                <th class="py-3 px-4 font-semibold">Extension</th>
+                                <th class="py-3 px-4 font-semibold">Size</th>
+                                <th class="py-3 px-4 font-semibold text-right">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="fileTableBody" class="divide-y divide-slate-100 text-sm">
+                            <!-- Populated via JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    <script>
+        let organizedFiles = [];
+        let activeCategory = 'All';
+
+        const CATEGORY_RULES = {
+            'Images': { exts: ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp', 'ico'], color: 'bg-pink-50 text-pink-600 border-pink-200', icon: '🖼️' },
+            'Documents': { exts: ['pdf', 'doc', 'docx', 'txt', 'rtf', 'odt', 'xls', 'xlsx', 'csv', 'ppt', 'pptx', 'md'], color: 'bg-blue-50 text-blue-600 border-blue-200', icon: '📄' },
+            'Code & Scripts': { exts: ['py', 'js', 'html', 'css', 'java', 'cpp', 'c', 'php', 'json', 'xml', 'sql', 'ts', 'sh'], color: 'bg-emerald-50 text-emerald-600 border-emerald-200', icon: '💻' },
+            'Audio & Video': { exts: ['mp3', 'wav', 'ogg', 'flac', 'mp4', 'mkv', 'avi', 'mov', 'webm'], color: 'bg-purple-50 text-purple-600 border-purple-200', icon: '🎬' },
+            'Archives': { exts: ['zip', 'rar', '7z', 'tar', 'gz'], color: 'bg-amber-50 text-amber-600 border-amber-200', icon: '📦' },
+            'Others': { exts: [], color: 'bg-slate-100 text-slate-600 border-slate-200', icon: '📁' }
+        };
+
+        const dropzone = document.getElementById('dropzone');
+        const fileInput = document.getElementById('fileInput');
+
+        dropzone.addEventListener('click', () => fileInput.click());
+        dropzone.addEventListener('dragover', (e) => { e.preventDefault(); dropzone.classList.add('drag-active'); });
+        dropzone.addEventListener('dragleave', () => dropzone.classList.remove('drag-active'));
+        dropzone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropzone.classList.remove('drag-active');
+            if (e.dataTransfer.files.length) processFiles(Array.from(e.dataTransfer.files));
+        });
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length) processFiles(Array.from(e.target.files));
+            fileInput.value = '';
+        });
+
+        function detectCategory(ext) {
+            ext = ext.toLowerCase();
+            for (const [category, data] of Object.entries(CATEGORY_RULES)) {
+                if (data.exts.includes(ext)) return category;
+            }
+            return 'Others';
+        }
+
+        function formatBytes(bytes) {
+            if (bytes === 0) return '0 B';
+            const k = 1024;
+            const sizes = ['B', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+        }
+
+        function resolveDuplicateName(category, originalName) {
+            const existingNames = organizedFiles
+                .filter(f => f.category === category)
+                .map(f => f.finalName.toLowerCase());
+
+            if (!existingNames.includes(originalName.toLowerCase())) {
+                return { name: originalName, renamed: false };
+            }
+
+            const dotIndex = originalName.lastIndexOf('.');
+            const base = dotIndex !== -1 ? originalName.slice(0, dotIndex) : originalName;
+            const ext = dotIndex !== -1 ? originalName.slice(dotIndex) : '';
+
+            let counter = 1;
+            let candidate = `${base} (${counter})${ext}`;
+            while (existingNames.includes(candidate.toLowerCase())) {
+                counter++;
+                candidate = `${base} (${counter})${ext}`;
+            }
+            return { name: candidate, renamed: true };
+        }
+
+        function processFiles(fileList, isSample = false) {
+            fileList.forEach(file => {
+                const parts = file.name.split('.');
+                const ext = parts.length > 1 ? parts.pop().toLowerCase() : 'none';
+                const category = detectCategory(ext);
+                const { name: finalName, renamed } = resolveDuplicateName(category, file.name);
+
+                organizedFiles.push({
+                    id: Math.random().toString(36).substr(2, 9),
+                    originalName: file.name,
+                    finalName: finalName,
+                    ext: ext,
+                    size: file.size,
+                    category: category,
+                    renamed: renamed,
+                    fileObj: isSample ? null : file,
+                    sampleContent: isSample ? `Sample content generated for ${finalName}` : null
+                });
+            });
+
+            updateUI();
+        }
+
+        function loadSampleFiles() {
+            const samples = [
+                { name: 'resume_2026.pdf', size: 245000 },
+                { name: 'profile_photo.jpg', size: 1420000 },
+                { name: 'file_organizer.py', size: 4200 },
+                { name: 'index.html', size: 8900 },
+                { name: 'project_backup.zip', size: 5120000 },
+                { name: 'demo_walkthrough.mp4', size: 12400000 },
+                { name: 'resume_2026.pdf', size: 245000 },
+                { name: 'notes.txt', size: 1500 },
+                { name: 'logo_banner.png', size: 540000 },
+                { name: 'unknown_data.dat', size: 32000 }
+            ];
+            processFiles(samples, true);
+        }
+
+        function clearAll() {
+            organizedFiles = [];
+            activeCategory = 'All';
+            document.getElementById('dashboard').classList.add('hidden');
+            document.getElementById('clearBtn').classList.add('hidden');
+        }
+
+        function setFilter(category) {
+            activeCategory = category;
+            document.getElementById('activeFilterBadge').textContent = category;
+            document.getElementById('resetFilterBtn').classList.toggle('hidden', category === 'All');
+            renderCategories();
+            renderFileList();
+        }
+
+        function updateUI() {
+            if (organizedFiles.length === 0) return;
+
+            document.getElementById('dashboard').classList.remove('hidden');
+            document.getElementById('clearBtn').classList.remove('hidden');
+
+            const totalBytes = organizedFiles.reduce((acc, f) => acc + f.size, 0);
+            const activeCats = new Set(organizedFiles.map(f => f.category)).size;
+
+            document.getElementById('totalFilesCount').textContent = organizedFiles.length;
+            document.getElementById('totalCategoriesCount').textContent = activeCats;
+            document.getElementById('totalSizeCount').textContent = formatBytes(totalBytes);
+
+            renderCategories();
+            renderFileList();
+        }
+
+        function renderCategories() {
+            const grid = document.getElementById('categoryGrid');
+            grid.innerHTML = '';
+
+            Object.entries(CATEGORY_RULES).forEach(([catName, meta]) => {
+                const count = organizedFiles.filter(f => f.category === catName).length;
+                const isSelected = activeCategory === catName;
+
+                const card = document.createElement('button');
+                card.onclick = () => setFilter(isSelected ? 'All' : catName);
+                card.className = `p-3.5 rounded-xl border text-left transition flex flex-col justify-between ${
+                    isSelected ? 'ring-2 ring-blue-500 border-blue-500 bg-blue-50/40' : 'bg-white border-slate-200 hover:border-slate-300'
+                }`;
+
+                card.innerHTML = `
+                    <div class="flex items-center justify-between w-full mb-2">
+                        <span class="text-xl">${meta.icon}</span>
+                        <span class="text-xs font-bold px-2 py-0.5 rounded-full ${meta.color}">${count}</span>
+                    </div>
+                    <p class="text-xs sm:text-sm font-semibold text-slate-800 truncate">${catName}</p>
+                `;
+                grid.appendChild(card);
+            });
+        }
+
+        function renderFileList() {
+            const tbody = document.getElementById('fileTableBody');
+            const query = document.getElementById('searchInput').value.toLowerCase();
+            tbody.innerHTML = '';
+
+            const filtered = organizedFiles.filter(f => {
+                const matchesCat = activeCategory === 'All' || f.category === activeCategory;
+                const matchesSearch = f.finalName.toLowerCase().includes(query) || f.category.toLowerCase().includes(query);
+                return matchesCat && matchesSearch;
+            });
+
+            if (filtered.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="5" class="py-8 text-center text-slate-400 text-sm">No matching files found.</td></tr>`;
+                return;
+            }
+
+            filtered.forEach(file => {
+                const meta = CATEGORY_RULES[file.category];
+                const tr = document.createElement('tr');
+                tr.className = 'hover:bg-slate-50/80 transition';
+                tr.innerHTML = `
+                    <td class="py-3 px-4">
+                        <span class="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-md border ${meta.color}">
+                            ${meta.icon} ${file.category}
+                        </span>
+                    </td>
+                    <td class="py-3 px-4 font-medium text-slate-800">${file.finalName}</td>
+                    <td class="py-3 px-4 text-xs font-mono text-slate-500 uppercase">.${file.ext}</td>
+                    <td class="py-3 px-4 text-slate-500 text-xs">${formatBytes(file.size)}</td>
+                    <td class="py-3 px-4 text-right">
+                        ${file.renamed 
+                            ? '<span class="text-xs font-medium bg-amber-100 text-amber-700 px-2 py-0.5 rounded">Auto-Renamed</span>' 
+                            : '<span class="text-xs font-medium bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded">Sorted</span>'}
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        async function downloadZip() {
+            if (!organizedFiles.length) return;
+            const btn = document.getElementById('zipBtn');
+            const origText = btn.innerHTML;
+            btn.innerHTML = 'Packaging ZIP...';
+            btn.disabled = true;
+
+            try {
+                const zip = new JSZip();
+                for (const item of organizedFiles) {
+                    const folder = zip.folder(item.category);
+                    if (item.fileObj) {
+                        folder.file(item.finalName, item.fileObj);
+                    } else {
+                        folder.file(item.finalName, item.sampleContent);
+                    }
+                }
+                const blob = await zip.generateAsync({ type: 'blob' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'Sorted_Files_SortFlow.zip';
+                a.click();
+                URL.revokeObjectURL(url);
+            } finally {
+                btn.innerHTML = origText;
+                btn.disabled = false;
+            }
+        }
+
+        function downloadReport() {
+            if (!organizedFiles.length) return;
+            let report = "SORTFLOW DIRECTORY ORGANIZATION REPORT\n";
+            report += "======================================\n\n";
+
+            const grouped = {};
+            organizedFiles.forEach(f => {
+                if (!grouped[f.category]) grouped[f.category] = [];
+                grouped[f.category].push(f);
+            });
+
+            for (const [cat, files] of Object.entries(grouped)) {
+                report += `📁 ${cat}/ (${files.length} files)\n`;
+                files.forEach(f => {
+                    report += `   ├── ${f.finalName} [${formatBytes(f.size)}]${f.renamed ? ' (Renamed to avoid conflict)' : ''}\n`;
+                });
+                report += "\n";
+            }
+
+            const blob = new Blob([report], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'directory_tree_report.txt';
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+    </script>
+</body>
+</html>
